@@ -27,8 +27,10 @@ What is a Sender OBV? A dictionary of the following items:
         Object: Integer.
     NOISE: The noise experienced by each pair.
         Object: boolean 2D list of size (num_pairs x num_channels).
-        Each row represents a pair, columns represent the channel. If true there's noise.
-    PREV_STATE: The previous round's board state (after submissions, conflict, and noise processing).
+        Each row represents a pair, columns represent the channel. If true
+        there's noise.
+    PREV_STATE: The previous round's board state (after submissions, conflict,
+        and noise processing).
         Object: List of length (num_channels) of elements from Suit.ALL.
 
 What is a Sender ACTION?
@@ -53,18 +55,20 @@ What is the internal state of the game? The following attributes:
     ROUND: What round in the game it is.
         Object: Integer.
     SEQUENCE_LIST: The sequences of suits each sender needs to transmit.
-        Object: 2D list of size (num_pairs x sequence_len), where each element is from
-        Suit.SUITS. Each row represents a pair.
+        Object: 2D list of size (num_pairs x sequence_len), where each element
+        is from Suit.SUITS. Each row represents a pair.
     NOISE_LIST: The noise experienced by each pair.
         Object: Boolean 2D list of size (num_pairs x num_channels).
-        Each row represents a pair, columns represent the channel. If true there's noise.
+        Each row represents a pair, columns represent the channel. If true
+        there's noise.
     INDICES: The position in their sequence each pair is on.
         Object: Int list of length (num_pairs).
     PREV_STATE: The previous board state (post-processed) from the Senders.
         Object: Object: List of length (num_channels) of elements from Suit.ALL.
 
 Misc Things
-    1. What gets sent and returned from step() are always LISTS of OBVs and actions.
+    1. What gets sent and returned from step() are always LISTS of OBVs and
+       actions.
 """
 class Spectrum(Env):
 
@@ -95,7 +99,8 @@ class Spectrum(Env):
     """
     Set new values for the constants.
     """
-    def set_constants(self, num_pairs=2, noise_per_person=1, num_channels=4, sequence_len=5):
+    def set_constants(self, num_pairs=2, noise_per_person=1, num_channels=4,
+                      sequence_len=5):
         self.num_pairs = num_pairs
         self.noise_per_person = noise_per_person
         self.num_channels = num_channels
@@ -109,8 +114,10 @@ class Spectrum(Env):
         self.turn = Agent.SENDER
         self.round = 1
         for i in range(self.num_pairs):
-            self.sequence_list[i] = [Suit.sample_suits() for j in range(self.sequence_len)]
-            self.noise_list[i] = [True if j < self.noise_per_person else False for j in range(self.num_channels)]
+            self.sequence_list[i] = \
+                [Suit.sample_suits() for j in range(self.sequence_len)]
+            self.noise_list[i] = [True if j < self.noise_per_person
+                                  else False for j in range(self.num_channels)]
             random.shuffle(self.noise_list[i])
             self.indices[i] = 0
         self.prev_state = [Suit.NULL for i in range(self.num_channels)]
@@ -134,10 +141,12 @@ class Spectrum(Env):
     """
     See the procedure (A) for how to use step() properly.
     Input a list of actions (either Sender Actions (B) or Receiver Actions (D)).
-    Takes the corresponding action and returns either a list of Sender OBVs or Receiver OBVs.
+    Takes the corresponding action and returns either a list of Sender OBVs or
+    Receiver OBVs.
     """
     def _step(self, action_list):
-        assert self.action_space.contains(action_list), "%r (%s) invalid"%(action_list, type(action_list))
+        assert self.action_space.contains(action_list), \
+            "%r (%s) invalid"%(action_list, type(action_list))
         if self.turn == Agent.SENDER:
             obv_list = [] # Receiver OBV list
             board_state = [Suit.NULL for i in range(self.num_channels)]
@@ -151,7 +160,9 @@ class Spectrum(Env):
                             board_state[j] = suit
                         else: # Collision!
                             board_state[j] = Suit.NULL
-                obv = {"STATE": board_state, "INDEX": self.indices[i], "ROUND": self.round}
+                obv = {"STATE": board_state,
+                       "INDEX": self.indices[i],
+                       "ROUND": self.round}
                 obv_list.append(obv)
             self.prev_state = board_state
             self.turn = Agent.RECEIVER
@@ -202,11 +213,13 @@ class ActionSpace(Space):
         if self.spectrum.turn == Agent.SENDER:
             actions = []
             for i in range(self.spectrum.num_pairs):
-                actions.append([Suit.sample_all() for j in range(self.spectrum.num_channels)])
+                actions.append([Suit.sample_all() for j in
+                                range(self.spectrum.num_channels)])
         else:
             actions = []
             for i in range(self.spectrum.num_pairs):
-                num_cards_left = self.spectrum.sequence_len - self.spectrum.indices[i]
+                num_cards_left = self.spectrum.sequence_len - \
+                                    self.spectrum.indices[i]
                 len = random.randint(1, num_cards_left + 1)
                 actions.append([Suit.sample_suits() for j in range(len)])
         return actions
