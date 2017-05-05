@@ -2,6 +2,6 @@
 
 We can use the README to discuss status.
 
-So this is completely untested atm. I believe all the core funtionality is there so you can technically start running learning on it. Take a look at the big chunk of documentation I have at the top of the file for the procedure of running it (since it's multiagent + multistate, you have to do some stuff on your own end).
+It's been somewhat tested - look at sanity_tests.py to see what it succeeds at doing right now. I've also added in a set_constants() function in spectrum.py that allows you to change the preset constants of the game. Call this BEFORE you call reset(). Lastly I've brought an ActionSpace implementation so you can use that to sample randomly and check that actions are legal.
 
-When I get time I'm going to write some sanity tests, make the action_space work so you can sample randomly, and then put in some helper functions that hopefully should make your lives easier. There's also a render method which I haven't dealt with yet, I might hack together a cmd line GUI.
+Still needed: more sanity checks, particularly for noise and collision checking. More helper functions that make life easier. render() implementation.
