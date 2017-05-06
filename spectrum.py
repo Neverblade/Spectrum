@@ -68,6 +68,8 @@ Misc Things
 """
 class Spectrum(Env):
 
+    metadata = {'render.modes': ['ansi']}
+
     """
     Initialization doesn't directly allow for playing. Need to call reset.
     """
@@ -89,7 +91,7 @@ class Spectrum(Env):
         # Set up action space
         self.action_space = ActionSpace(self)
 
-        # Seed randomly.
+        # Misc stuff.
         self._seed()
 
     """
@@ -186,7 +188,7 @@ class Spectrum(Env):
             return obv_list, reward, done, {}
 
 
-    def _render(self, mode='human', close=False):
+    def _render(self, mode='ansi', close=False):
         pass
 
 
