@@ -1,7 +1,9 @@
 from gym import *
+from gym import spaces
 from gym.utils import seeding
 import numpy as np
 import random
+import itertools
 
 """
 
@@ -90,15 +92,27 @@ class SpectrumEnv(Env):
         self.roundnum = None
         self.sequence_list = [None for i in range(self.num_pairs)]
         self.noise_list = [None for i in range(self.num_pairs)]
-        self.indices = [None for i in range(self.num_pairs)]
+        self.indices = [0 for i in range(self.num_pairs)]
         self.prev_state = None
+        self.guessed = [[] for i in range(self.num_pairs)]
+
+        # Set up spaces/shapes
+        self.noises = [i for i in itertools.product(range(2),
+                                               repeat=self.num_channels)]
 
         # Set up action space
         self.action_space = ActionSpace(self)
+        self.action_size = len(self.action_space.states)
 
         # Misc stuff.
         self._seed()
         self.spec = None
+        self.observation_space = spaces.MultiDiscrete(
+            [[0, len(self.action_space.seqs)],    # Sequence
+             [0, len(self.action_space.states)],  # State
+             [0, self.num_pairs],    # Index
+             [0, len(self.noises)]]) # Noise
+
 
     """
     Set new values for the constants.
@@ -129,12 +143,14 @@ class SpectrumEnv(Env):
         # Return initial sender OBVs
         obv_list = []
         for i in range(self.num_pairs):
-            obv = {}
-            obv["SEQUENCE"] = self.sequence_list[i]
-            obv["INDEX"] = self.indices[i]
-            obv["ROUND"] = self.roundnum
-            obv["NOISE"] = self.noise_list[i]
-            obv["PREV_STATE"] = self.prev_state
+            obv = [0] * self.observation_space.shape
+            obv[Feature.SEQUENCE] = \
+                self.action_space.seqs.index(tuple(self.sequence_list[i]))
+            my_state = tuple(self.prev_state)
+            obv[Feature.STATE] = self.action_space.states.index(my_state)
+            obv[Feature.INDEX] = self.indices[i]
+            obv[Feature.NOISE] = self.noises.index(tuple(self.noise_list[i]))
+            obv = np.array(obv)
             obv_list.append(obv)
         return obv_list
 
@@ -155,18 +171,24 @@ class SpectrumEnv(Env):
             obv_list = [] # Receiver OBV list
             board_state = [Suit.NULL for i in range(self.num_channels)]
             for i in range(self.num_pairs):
+                action = self.action_space.states[action_list[i]]
                 for j in range(self.num_channels):
-                    if self.noise_list[i][j]:
+                    noise = self.noise_list[i][j]
+                    if noise:
                         continue
-                    suit = action_list[i][j]
+                    suit = action[j]
                     if suit != Suit.NULL:
                         if board_state[j] == Suit.NULL: # Free channel
                             board_state[j] = suit
                         else: # Collision!
                             board_state[j] = Suit.NULL
-                obv = {"STATE": board_state,
-                       "INDEX": self.indices[i],
-                       "ROUND": self.roundnum}
+                obv = [0] * self.observation_space.shape
+                obv[Feature.SEQUENCE] = 0
+                obv[Feature.INDEX] = self.indices[i]
+                obv[Feature.STATE] = \
+                    self.action_space.states.index(tuple(board_state))
+                obv[Feature.NOISE] = 0
+                obv = np.array(obv)
                 obv_list.append(obv)
             self.prev_state = board_state
             self.turn = Agent.RECEIVER
@@ -175,12 +197,16 @@ class SpectrumEnv(Env):
             obv_list, reward, done = [], 0, True
             for i in range(self.num_pairs):
                 # Process action
-                seq_guess, index = action_list[i], self.indices[i]
+                seq, index = action_list[i], self.indices[i]
+                seq_guess = list(filter(lambda a: a != 0,
+                                        self.action_space.seqs[seq]))
                 for j in range(len(seq_guess)):
                     if index + j >= self.sequence_len \
                        or seq_guess[j] != self.sequence_list[i][index + j]:
+                        reward -= 1.0 / len(Suit.SUITS)
                         break
                     else:
+                        self.guessed[i].append(seq_guess[j])
                         self.indices[i] += 1
                         reward += 1
 
@@ -190,12 +216,14 @@ class SpectrumEnv(Env):
                 self.roundnum += 1
 
                 # Construct OBV
-                obv = {}
-                obv["SEQUENCE"] = self.sequence_list[i]
-                obv["INDEX"] = self.indices[i]
-                obv["ROUND"] = self.roundnum
-                obv["NOISE"] = self.noise_list[i]
-                obv["PREV_STATE"] = self.prev_state
+                obv = [0] * self.observation_space.shape
+                obv[Feature.SEQUENCE] = \
+                    self.action_space.seqs.index(tuple(self.sequence_list[i]))
+                obv[Feature.STATE] = self.action_space.states.index(tuple(self.prev_state))
+                obv[Feature.INDEX] = self.indices[i]
+                obv[Feature.NOISE] = \
+                                    self.noises.index(tuple(self.noise_list[i]))
+                obv = np.array(obv)
                 obv_list.append(obv)
             self.turn = Agent.SENDER
             return obv_list, reward, done, {}
@@ -247,42 +275,40 @@ class ActionSpace(Space):
 
     def __init__(self, spectrum):
         self.spectrum = spectrum
+        self.states = [i for i in itertools.product(range(len(Suit.ALL)),
+                                   repeat=self.spectrum.num_channels)]
+        self.seqs = [i for i in itertools.product(range(1+len(Suit.SUITS)),
+                                 repeat=self.spectrum.sequence_len)]
 
     def sample(self):
         if self.spectrum.turn == Agent.SENDER:
             actions = []
             for i in range(self.spectrum.num_pairs):
-                actions.append([Suit.sample_all() for j in
-                                range(self.spectrum.num_channels)])
+                actions.append(
+                    self.states.index(tuple([Suit.sample_all() for j in
+                                range(self.spectrum.num_channels)])))
         else:
             actions = []
             for i in range(self.spectrum.num_pairs):
                 num_cards_left = self.spectrum.sequence_len - \
                                     self.spectrum.indices[i]
-                len = random.randint(1, num_cards_left + 1)
-                actions.append([Suit.sample_suits() for j in range(len)])
+                length = random.randint(0, self.spectrum.num_channels)
+                guess = [Suit.sample_suits() for j in range(length)]
+                while len(guess) < self.spectrum.num_channels:
+                    guess.append(0)
+                actions.append(self.states.index(tuple(guess)))
         return actions
 
     def contains(self, x):
         #try:
-        if len(x) != self.spectrum.num_pairs:
-            return False
         if self.spectrum.turn == Agent.SENDER:
-            for j in range(self.spectrum.num_pairs):
-                if len(x[j]) != self.spectrum.num_channels:
-                    return False
-                for i in range(self.spectrum.num_channels):
-                    if x[j][i] not in Suit.ALL:
-                        return False
-            return True
+            lst = range(len(self.states))
         else:
-            for j in range(self.spectrum.num_pairs):
-                for i in range(len(x[j])):
-                    if x[j][i] not in Suit.SUITS:
-                        return False
-                return True
-        #except:
-        #    return False
+            lst = range(len(self.seqs))
+        for i in range(len(x)):
+            if x[i] not in lst:
+                return False
+        return True
 
     def to_jsonable(self, sample_n):
         raise NotImplementedError
@@ -318,3 +344,9 @@ Enum replacement for agents in the game.
 class Agent:
     SENDER = 0
     RECEIVER = 1
+
+class Feature:
+    INDEX = 0
+    STATE = 1
+    NOISE = 2
+    SEQUENCE = 3
