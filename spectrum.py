@@ -9,7 +9,7 @@ import random
 
 The process runs as follows:
 
-1. Initialize Spectrum object
+1. Initialize SpectrumEnv object
 2. Call reset, receive initial list of Sender OBV
 Game Starts
     1. Senders sees their OBVs, decides actions, submits to step()
@@ -70,7 +70,7 @@ Misc Things
     1. What gets sent and returned from step() are always LISTS of OBVs and
        actions.
 """
-class Spectrum(Env):
+class SpectrumEnv(Env):
 
     metadata = {'render.modes': ['ansi']}
 
@@ -86,7 +86,7 @@ class Spectrum(Env):
 
         # Setting up internal state.
         self.turn = None
-        self.round = None
+        self.roundnum = None
         self.sequence_list = [None for i in range(self.num_pairs)]
         self.noise_list = [None for i in range(self.num_pairs)]
         self.indices = [None for i in range(self.num_pairs)]
@@ -115,7 +115,7 @@ class Spectrum(Env):
     def _reset(self):
         # Assign attributes accordingly
         self.turn = Agent.SENDER
-        self.round = 1
+        self.roundnum = 1
         for i in range(self.num_pairs):
             self.sequence_list[i] = \
                 [Suit.sample_suits() for j in range(self.sequence_len)]
@@ -131,7 +131,7 @@ class Spectrum(Env):
             obv = {}
             obv["SEQUENCE"] = self.sequence_list[i]
             obv["INDEX"] = self.indices[i]
-            obv["ROUND"] = self.round
+            obv["ROUND"] = self.roundnum
             obv["NOISE"] = self.noise_list[i]
             obv["PREV_STATE"] = self.prev_state
             obv_list.append(obv)
@@ -165,7 +165,7 @@ class Spectrum(Env):
                             board_state[j] = Suit.NULL
                 obv = {"STATE": board_state,
                        "INDEX": self.indices[i],
-                       "ROUND": self.round}
+                       "ROUND": self.roundnum}
                 obv_list.append(obv)
             self.prev_state = board_state
             self.turn = Agent.RECEIVER
@@ -186,13 +186,13 @@ class Spectrum(Env):
                 # Check if done
                 if self.indices[i] != self.sequence_len:
                     done = False
-                self.round += 1
+                self.roundnum += 1
 
                 # Construct OBV
                 obv = {}
                 obv["SEQUENCE"] = self.sequence_list[i]
                 obv["INDEX"] = self.indices[i]
-                obv["ROUND"] = self.round
+                obv["ROUND"] = self.roundnum
                 obv["NOISE"] = self.noise_list[i]
                 obv["PREV_STATE"] = self.prev_state
                 obv_list.append(obv)
@@ -202,7 +202,7 @@ class Spectrum(Env):
 
     def _render(self, mode='human', close=False):
         s = "\n"
-        s += "=== Round: " + str(self.round)
+        s += "=== Round: " + str(self.roundnum)
         s += " Turn: " + ("Sender" if self.turn == Agent.SENDER else "Receiver") + " ===\n\n"
 
         s += "Previous State:\n"

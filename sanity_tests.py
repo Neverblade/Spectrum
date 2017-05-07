@@ -1,9 +1,9 @@
 import unittest
 import spectrum
-from spectrum import Spectrum
+from spectrum import SpectrumEnv
 from spectrum import Suit
 
-class SpectrumTestMethods(unittest.TestCase):
+class SpectrumEnvTestMethods(unittest.TestCase):
 
     """
     Test that a sender can put a card down, and then a receiver can successfuly guess it.
@@ -65,7 +65,7 @@ class SpectrumTestMethods(unittest.TestCase):
         self.assertEqual(done, False)
 
     def setup(self, num_pairs=2, noise_per_person=1, num_channels=4, sequence_len=5):
-        game = Spectrum()
+        game = SpectrumEnv()
         game.set_constants(num_pairs, noise_per_person, num_channels, sequence_len)
         return game, game.reset()
 
