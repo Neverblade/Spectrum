@@ -72,7 +72,7 @@ Misc Things
 """
 class SpectrumEnv(Env):
 
-    metadata = {'render.modes': ['ansi']}
+    metadata = {'render.modes': ['ansi', 'human']}
 
     """
     Initialization doesn't directly allow for playing. Need to call reset.
@@ -200,7 +200,7 @@ class SpectrumEnv(Env):
             return obv_list, reward, done, {}
 
 
-    def _render(self, mode='human', close=False):
+    def _render(self, mode='ansi', close=False):
         s = "\n"
         s += "=== Round: " + str(self.roundnum)
         s += " Turn: " + ("Sender" if self.turn == Agent.SENDER else "Receiver") + " ===\n\n"
@@ -230,7 +230,10 @@ class SpectrumEnv(Env):
 
 
         s += "============================="
-        return s
+        if mode == 'human':
+            print(s)
+        else:
+            return s
 
 
 """
