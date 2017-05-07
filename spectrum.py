@@ -12,7 +12,8 @@ import itertools
 The process runs as follows:
 
 1. Initialize SpectrumEnv object
-2. Call reset, receive initial list of Sender OBV
+2. Call set_constants() to shape game as desired.
+3. Call reset, receive initial list of Sender OBV
 Game Starts
     1. Senders sees their OBVs, decides actions, submits to step()
     2. step() returns list of RECEIVER OBVs, reward of 0
@@ -20,36 +21,38 @@ Game Starts
     4. step() returns list of SENDER OBVs, reward of x
     5. Back to (1)
 
-What is a Sender OBV? A dictionary of the following items:
+What is a Sender OBV? A list of the following items:
     SEQUENCE: The sequence of suits the sender needs to transmit.
-        Object: List of length (sequence_len) of elements from Suit.SUITS.
+        Object: An int corresponding to a position in a one-hot
+        encoding list of all possible suit sequences.
     INDEX: What position in the sequence the pair is on.
         Object: Integer.
-    ROUND: The current round of the game.
-        Object: Integer.
-    NOISE: The noise experienced by each pair.
-        Object: boolean 2D list of size (num_pairs x num_channels).
-        Each row represents a pair, columns represent the channel. If true
-        there's noise.
+    NOISE: The noise experienced the sender.
+        Object: An int corresponding to a position in a one-hot
+        encoding list of all possible noise combinations.
     PREV_STATE: The previous round's board state (after submissions, conflict,
         and noise processing).
-        Object: List of length (num_channels) of elements from Suit.ALL.
+        Object: An int corresponding to a position in a one-hot
+        encoding list of all possible states.
 
 What is a Sender ACTION?
     A choice for each channel of what, if any, suit to send.
-    Object: List of length (num_channels) of elements from Suit.ALL
+    Underlying structure: List of length (num_channels) of elements from Suit.ALL
+    Object: An int corresponding to its position in a one-hot encoding list
+    of all possible states.
 
 What is a Receiver OBV? A dictionary of the following items:
     INDEX: What position in the sequence the pair is on.
         Object: Integer.
-    ROUND: The current round of the game.
-        Object: Integer.
     STATE: The board state (after submissions, conflict, and noise processing).
-        Object: List of length (num_channels) of elements from Suit.ALL.
+        Object: An int corresponding to a position in a one-hot
+        encoding list of all possible states.
 
 What is a Receiver ACTION?
     A guess of what suits the sender was trying to convey.
-    Object: List of any length of elements from Suit.SUITS
+    Underlying Structure: List of of elements from Suit.SUITS
+    Object: AN int corresponding to its positon in a one-hot encoding list
+    of all possible sequences.
 
 What is the internal state of the game? The following attributes:
     TURN: Which agent's turn it is to act.
@@ -86,7 +89,23 @@ class SpectrumEnv(Env):
         self.noise_per_person = 1
         self.num_channels = self.num_pairs * 2
         self.sequence_len = 5
+        self.noise_change_prob = 0
 
+    """
+    Set new values for the constants.
+    """
+    def set_constants(self, num_pairs=2, noise_per_person=1, num_channels=4,
+                      sequence_len=5, noise_change_prob=0):
+        self.num_pairs = num_pairs
+        self.noise_per_person = noise_per_person
+        self.num_channels = num_channels
+        self.sequence_len = sequence_len
+        self.noise_change_prob = noise_change_prob
+
+    """
+    Sets up the game for playing.
+    """
+    def _reset(self):
         # Setting up internal state.
         self.turn = None
         self.roundnum = None
@@ -113,21 +132,6 @@ class SpectrumEnv(Env):
              [0, self.num_pairs],    # Index
              [0, len(self.noises)]]) # Noise
 
-
-    """
-    Set new values for the constants.
-    """
-    def set_constants(self, num_pairs=2, noise_per_person=1, num_channels=4,
-                      sequence_len=5):
-        self.num_pairs = num_pairs
-        self.noise_per_person = noise_per_person
-        self.num_channels = num_channels
-        self.sequence_len = sequence_len
-
-    """
-    Sets up the game for playing.
-    """
-    def _reset(self):
         # Assign attributes accordingly
         self.turn = Agent.SENDER
         self.roundnum = 1
@@ -225,6 +229,13 @@ class SpectrumEnv(Env):
                                     self.noises.index(tuple(self.noise_list[i]))
                 obv = np.array(obv)
                 obv_list.append(obv)
+
+                # Update noises
+                for i in range(self.num_pairs):
+                    if random.random() < self.noise_change_prob:
+                        self.noise_list[i] = [True if j < self.noise_per_person
+                                  else False for j in range(self.num_channels)]
+
             self.turn = Agent.SENDER
             return obv_list, reward, done, {}
 
