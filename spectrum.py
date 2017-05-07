@@ -70,9 +70,10 @@ Misc Things
     1. What gets sent and returned from step() are always LISTS of OBVs and
        actions.
 """
+
 class SpectrumEnv(Env):
 
-    metadata = {'render.modes': ['ansi', 'human']}
+    metadata = {'render.modes': ['ansi', 'human', 'god']}
 
     """
     Initialization doesn't directly allow for playing. Need to call reset.
@@ -200,7 +201,7 @@ class SpectrumEnv(Env):
             return obv_list, reward, done, {}
 
 
-    def _render(self, mode='ansi', close=False):
+    def _render(self, mode='god', close=False):
         s = "\n"
         s += "=== Round: " + str(self.roundnum)
         s += " Turn: " + ("Sender" if self.turn == Agent.SENDER else "Receiver") + " ===\n\n"
@@ -210,23 +211,26 @@ class SpectrumEnv(Env):
             s += "    " + str(self.prev_state[i])
         s += "\n\n"
 
-        s += "Sequences:\n"
-        for i in range(self.num_pairs):
-            s += "    Sender " + str(i) + ": "
-            for j in range(self.sequence_len):
-                if self.indices[i] == j:
-                    s += ">" + str(self.sequence_list[i][j]) + "< "
-                else:
-                    s += str(self.sequence_list[i][j]) + " "
-            if self.indices[i] == self.sequence_len:
-                s += "DONE!"
-            s += "\n\n"
+        if mode == 'god':
+            s += "Sequences:\n"
+            for i in range(self.num_pairs):
+                s += "    Sender " + str(i) + ": "
+                for j in range(self.sequence_len):
+                    if self.indices[i] == j:
+                        s += ">" + str(self.sequence_list[i][j]) + "< "
+                    else:
+                        s += str(self.sequence_list[i][j]) + " "
+                if self.indices[i] == self.sequence_len:
+                    s += "DONE!"
+                s += "\n\n"
 
-        s += "Noise:\n"
-        for i in range(self.num_pairs):
-            for j in range(self.num_channels):
-                s += "    " + ("X" if self.noise_list[i][j] else ".")
-            s += "\n\n"
+            s += "Noise:\n"
+            for i in range(self.num_pairs):
+                for j in range(self.num_channels):
+                    s += "    " + ("X" if self.noise_list[i][j] else ".")
+                s += "\n\n"
+        else:
+            s += "Global score is {}\n".format(sum(self.indices))
 
 
         s += "============================="
