@@ -99,12 +99,108 @@ class RandomPlayer(TeamPlayer):
         sample = self.my_env.action_space.sample()
         return sample[self.idnum]
 
+"""
+Neural network player based on https://keon.io/deep-q-learning/
+"""
+class LearnerPlayer(TeamPlayer):
+    def __init__(self, env, idnum, state_size, action_size,
+                 gamma=0.9, epsilon=1.0, e_decay=0.99, e_min=0.05,
+                 learning_rate=0.01):
+        TeamPlayer.__init__(self, env, idnum)
+        self.state_size = state_size
+        self.action_size = action_size
+        self.memory = deque(maxlen=100000)
+        self.gamma = gamma    # discount rate
+        self.epsilon = epsilon  # exploration rate
+        self.e_decay = e_decay
+        self.e_min = e_min
+        self.learning_rate = learning_rate
+        self.model = self._build_model()
+
+    def set_env(self, env):
+        self.my_env = env
+
+    def _build_model(self):
+        model = Sequential()
+        # Input layer 4 and hidden layer with 20 nodes
+        model.add(Dense(20, input_dim=4, activation='tanh'))
+        # hidden layer with 128 nodes
+        model.add(Dense(20, activation='tanh'))
+        # output layer with 256 nodes
+        model.add(Dense(625, activation='softmax'))
+        model.compile(loss='mse', optimizer=RMSprop(lr=self.learning_rate))
+        return model
+
+    def remember(self, state, action, reward, next_state, done):
+        self.memory.append((state, action, reward, next_state, done))
+
+    def choose_action(self, observation):
+        my_obs = np.reshape(observation[self.idnum], [1, self.state_size])
+        if np.random.rand() <= self.epsilon:
+            return random.randrange(self.action_size)
+        act_values = self.model.predict(my_obs)
+        act_index = np.argmax(act_values[0])
+        return act_index
+
+    def replay(self, batch_size):
+        batch_size = min(batch_size, len(self.memory))
+        minibatch = random.sample(self.memory, batch_size)
+        X = np.zeros((batch_size, self.state_size))
+        Y = np.zeros((batch_size, self.action_size))
+        for i in range(batch_size):
+            state, action, reward, next_state, done = minibatch[i]
+            target = self.model.predict(state)[0]
+            if done:
+                target[action] = reward
+            else:
+                target[action] = reward + self.gamma * \
+                    np.amax(self.model.predict(next_state)[0])
+            X[i], Y[i] = state, target
+        self.model.fit(X, Y, batch_size=batch_size, epochs=1, verbose=0)
+        if self.epsilon > self.e_min:
+            self.epsilon *= self.e_decay
+
+    def load(self, name):
+        self.model.load_weights(name)
+
+    def save(self, name):
+        self.model.save_weights(name)
+
+    def train(self):
+        self.my_env = SpectrumEnv()
+        self.player1 = RandomPlayer(self.my_env)
+        for e in range(EPISODES):
+            obs = self.my_env.reset()
+            my_obs = obs[self.idnum]
+            my_obs = np.reshape(my_obs, [1, self.state_size])
+            for time in range(1000):
+                # self.my_env.render('human')
+                action = [self.player1.choose_action(obs),
+                          self.choose_action(obs)]
+                next_obs, reward, done, _ = self.my_env.step(action)
+                reward = reward if not done else 5
+                my_next_obs = np.reshape(next_obs[self.idnum],
+                                         [1, self.state_size])
+                self.remember(my_obs, action, reward, my_next_obs, done)
+                my_obs = my_next_obs
+                if done or time == 999:
+                    print("Episode: {}/{}, score: {}, e: {:.2}"
+                          .format(e, EPISODES, time, self.epsilon))
+                    break
+            self.replay(32)
+            if e % 10 == 0:
+                self.save("./save/spectrum.h5")
+
 
 def main():
     env = SpectrumEnv()
     # player1 = TeamPlayer(env)
     player1 = HumanReceiver(env)
-    player2 = RandomPlayer(env, 1)
+    state_size = env.observation_space.shape
+    player2 = LearnerPlayer(env, 1, state_size, env.action_size)
+    # player2.load("./save/spectrum.h5")
+    player2.train()
+    player2.set_env(env)
     # player2 = TeamPlayer(env, 1, [0,2])
     observation = env.reset()
     for t in range(100):
