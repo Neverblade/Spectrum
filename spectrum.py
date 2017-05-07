@@ -72,6 +72,8 @@ Misc Things
 """
 class Spectrum(Env):
 
+    metadata = {'render.modes': ['ansi']}
+
     """
     Initialization doesn't directly allow for playing. Need to call reset.
     """
@@ -93,8 +95,9 @@ class Spectrum(Env):
         # Set up action space
         self.action_space = ActionSpace(self)
 
-        # Seed randomly.
+        # Misc stuff.
         self._seed()
+        self.spec = None
 
     """
     Set new values for the constants.
@@ -198,7 +201,36 @@ class Spectrum(Env):
 
 
     def _render(self, mode='human', close=False):
-        pass
+        s = "\n"
+        s += "=== Round: " + str(self.round)
+        s += " Turn: " + ("Sender" if self.turn == Agent.SENDER else "Receiver") + " ===\n\n"
+
+        s += "Previous State:\n"
+        for i in range(self.num_channels):
+            s += "    " + str(self.prev_state[i])
+        s += "\n\n"
+
+        s += "Sequences:\n"
+        for i in range(self.num_pairs):
+            s += "    Sender " + str(i) + ": "
+            for j in range(self.sequence_len):
+                if self.indices[i] == j:
+                    s += ">" + str(self.sequence_list[i][j]) + "< "
+                else:
+                    s += str(self.sequence_list[i][j]) + " "
+            if self.indices[i] == self.sequence_len:
+                s += "DONE!"
+            s += "\n\n"
+
+        s += "Noise:\n"
+        for i in range(self.num_pairs):
+            for j in range(self.num_channels):
+                s += "    " + ("X" if self.noise_list[i][j] else ".")
+            s += "\n\n"
+
+
+        s += "============================="
+        return s
 
 
 """
