@@ -110,7 +110,7 @@ class SpectrumEnv(Env):
         self.observation_space = spaces.MultiDiscrete(
             [[0, len(self.action_space.seqs)],    # Sequence
              [0, len(self.action_space.states)],  # State
-             [0, self.num_pairs],    # Index
+             [0, self.sequence_len],    # Index
              [0, len(self.noises)]]) # Noise
 
 
