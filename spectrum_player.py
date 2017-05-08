@@ -213,15 +213,15 @@ class LearnerPlayer(TeamPlayer):
 
 def main():
     env = SpectrumEnv()
-    player1 = TeamPlayer(env)
     # player1 = HumanReceiver(env)
+    observation = env.reset()
+    player1 = TeamPlayer(env)
     state_size = env.observation_space.shape
     player2 = LearnerPlayer(env, 1, state_size, env.action_size)
     # player2.load("./save/spectrum.h5")
     player2.train()
     player2.set_env(env)
     # player2 = TeamPlayer(env, 1, [0,2])
-    observation = env.reset()
     for t in range(100):
         # env.render('human')
         action1 = player1.choose_action(observation)
