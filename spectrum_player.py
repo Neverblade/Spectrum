@@ -166,10 +166,24 @@ class LearnerPlayer(TeamPlayer):
     def save(self, name):
         self.model.save_weights(name)
 
+    def get_opponent(self, alg='alphago'):
+        if alg == 'alphago':
+            boardnum = random.randint(0, 99) * 10
+            opponent = LearnerPlayer(self.my_env, 0, self.state_size,
+                                     self.action_size)
+            opponent.load("./save/spectrum.{}.h5".format(boardnum))
+            return opponent
+        elif alg == 'random':
+            return RandomPlayer(self.my_env)
+        elif alg == 'hardcode':
+            return TeamPlayer(self.my_env)
+        else:
+            print("Invalid algorithm {}".format(alg))
+
     def train(self):
         self.my_env = SpectrumEnv()
-        self.player1 = RandomPlayer(self.my_env)
         for e in range(EPISODES):
+            self.player1 = self.get_opponent('random')
             obs = self.my_env.reset()
             my_obs = obs[self.idnum]
             my_obs = np.reshape(my_obs, [1, self.state_size])
@@ -178,24 +192,25 @@ class LearnerPlayer(TeamPlayer):
                 action = [self.player1.choose_action(obs),
                           self.choose_action(obs)]
                 next_obs, reward, done, _ = self.my_env.step(action)
-                reward = reward if not done else 5
+                reward = reward if not done else reward - time / 10.0
                 my_next_obs = np.reshape(next_obs[self.idnum],
                                          [1, self.state_size])
                 self.remember(my_obs, action, reward, my_next_obs, done)
                 my_obs = my_next_obs
                 if done or time == 999:
-                    print("Episode: {}/{}, score: {}, e: {:.2}"
-                          .format(e, EPISODES, time, self.epsilon))
+                    # if time % 100 == 0:
+                    print("Episode: {}/{}, score: {}, reward: {}, e: {:.2}"
+                          .format(e, EPISODES, time, reward, self.epsilon))
                     break
             self.replay(32)
             if e % 10 == 0:
-                self.save("./save/spectrum.h5")
+                self.save("./save/spectrum.{}.h5".format(e))
 
 
 def main():
     env = SpectrumEnv()
-    # player1 = TeamPlayer(env)
-    player1 = HumanReceiver(env)
+    player1 = TeamPlayer(env)
+    # player1 = HumanReceiver(env)
     state_size = env.observation_space.shape
     player2 = LearnerPlayer(env, 1, state_size, env.action_size)
     # player2.load("./save/spectrum.h5")
