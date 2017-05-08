@@ -198,7 +198,7 @@ class SpectrumEnv(Env):
             self.turn = Agent.RECEIVER
             return obv_list, 0, False, {}
         else:
-            obv_list, reward, done = [], 0, True
+            obv_list, reward, done = [], 0.0, True
             for i in range(self.num_pairs):
                 # Process action
                 seq, index = action_list[i], self.indices[i]

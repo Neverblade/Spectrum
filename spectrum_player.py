@@ -196,7 +196,7 @@ class LearnerPlayer(TeamPlayer):
                 action = [self.player1.choose_action(obs),
                           self.choose_action(obs)]
                 next_obs, reward, done, _ = self.my_env.step(action)
-                reward = reward if not done else reward - time / 10.0
+                reward = reward / (time + 1)
                 my_next_obs = np.reshape(next_obs[self.idnum],
                                          [1, self.state_size])
                 self.remember(my_obs, action, reward, my_next_obs, done)
