@@ -8,7 +8,8 @@ import random
 from collections import deque
 from keras.models import Sequential
 from keras.layers import Dense
-from keras.optimizers import RMSprop
+# from keras.optimizers import RMSprop
+from keras.optimizers import SGD
 
 EPISODES = 100
 
@@ -127,8 +128,11 @@ class LearnerPlayer(TeamPlayer):
         # hidden layer with 128 nodes
         model.add(Dense(20, activation='tanh'))
         # output layer with 256 nodes
-        model.add(Dense(625, activation='softmax'))
-        model.compile(loss='mse', optimizer=RMSprop(lr=self.learning_rate))
+        model.add(Dense(self.my_env.action_size, activation='softmax'))
+        model.compile(loss='mse',
+                      optimizer=SGD(lr=self.learning_rate, decay=1e-6,
+                                    momentum=0.9, nesterov=True))
+                      # optimizer=RMSprop(lr=self.learning_rate))
         return model
 
     def remember(self, state, action, reward, next_state, done):
@@ -156,7 +160,7 @@ class LearnerPlayer(TeamPlayer):
                 target[action] = reward + self.gamma * \
                     np.amax(self.model.predict(next_state)[0])
             X[i], Y[i] = state, target
-        self.model.fit(X, Y, batch_size=batch_size, epochs=1, verbose=0)
+        self.model.fit(X, Y, batch_size=batch_size, epochs=20, verbose=0)
         if self.epsilon > self.e_min:
             self.epsilon *= self.e_decay
 
