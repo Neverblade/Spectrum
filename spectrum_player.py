@@ -246,15 +246,15 @@ def main(args):
         action = [action1, action2]
         if args.verbose >= 2:
             env.render('god')
-            print env.format_obs(observation)
-            print env.format_action(action)
+            print (env.format_obs(observation))
+            print (env.format_action(action))
         observation, reward, done, info = env.step(action)
         if done:
             if args.verbose >= 1:
-                print ("Episode finished after {} timesteps".format(t+1))
-                print env.format_obs(observation)
+                print (("Episode finished after {} timesteps".format(t+1)))
+                print (env.format_obs(observation))
                 action1 = player1.choose_action(observation)
-                print env.format_action([action1])
+                print (env.format_action([action1]))
                 break
 
 if __name__ == '__main__':
