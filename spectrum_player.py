@@ -104,7 +104,6 @@ class RandomPlayer(TeamPlayer):
 class PsychicNullPlayer(TeamPlayer):
     # def __init__(self, env, num=0, priors=[0]):
     #     TeamPlayer.__init__(self, env, num, priors)
-    #     self.my_env.sequence_list[self.idnum] = [0]
     #
     def choose_action(self, observation):
         if self.my_env.turn == Agent.SENDER:
@@ -124,8 +123,10 @@ Neural network player based on https://keon.io/deep-q-learning/
 class LearnerPlayer(TeamPlayer):
     def __init__(self, env, idnum, state_size, action_size, savepath="./save/",
                  verbose=1,
-                 gamma=0.9, epsilon=1.0, e_decay=0.99, e_min=0.05,
-                 learning_rate=0.01):
+                 gamma=0.9, epsilon=1.0,
+                 e_decay=0.999,
+                 e_min=0.05,
+                 learning_rate=0.01, batch_size=4):
         TeamPlayer.__init__(self, env, idnum)
         self.state_size = state_size
         self.action_size = action_size
@@ -137,6 +138,7 @@ class LearnerPlayer(TeamPlayer):
         self.e_decay = e_decay
         self.e_min = e_min
         self.learning_rate = learning_rate
+        self.batch_size = batch_size
         self.model = self._build_model()
 
     def set_env(self, env):
@@ -213,6 +215,8 @@ class LearnerPlayer(TeamPlayer):
 
     def train(self, episodes=100, maxrounds=100):
         self.my_env = SpectrumEnv()
+        self.my_env.set_constants(noise_per_person=0)
+        totaltime = 0.0
         for e in range(episodes):
             obs = self.my_env.reset()
             self.player1 = self.get_opponent('null')
@@ -222,55 +226,86 @@ class LearnerPlayer(TeamPlayer):
                 action = [self.player1.choose_action(obs),
                           self.choose_action(obs)]
                 obs, reward, done, _ = self.my_env.step(action)
+                # reward = 0
                 reward = reward / (time + 1)
                 my_next_obs = np.reshape(obs[self.idnum],
                                          [1, self.state_size])
-                self.remember(my_obs, action, reward, my_next_obs, done)
+                if random.random() < 0.05:
+                    self.remember(my_obs, action, reward, my_next_obs, done)
                 my_obs = my_next_obs
                 if done or time == maxrounds - 1:
-                    # if time % 100 == 0:
-                    if self.verbose >= 1:
-                        print("Episode: {}/{}, score: {}, reward: {}, e: {:.2}"
-                              .format(e, episodes, time, reward, self.epsilon))
+                    if time % 100 == 0:
+                        if self.verbose >= 1:
+                            print("Episode: {}/{}, score: {}, reward: {}, e: {:.2}"
+                                  .format(e, episodes, self.my_env.roundnum, reward, self.epsilon))
+                    totaltime += self.my_env.roundnum
                     break
-            self.replay(32)
-            if e % 10 == 0:
+            self.replay(self.batch_size)
+            if e % 100 == 0:
+                if self.verbose >= 1:
+                    avg = totaltime / (e + 1)
+                    print(avg)
                 self.save(args.savepath+"spectrum.{}.h5".format(e))
         self.my_env.close()
 
+def fake_train(env, player1, player2, episodes, maxrounds, verbose=1):
+    totaltime = 0.0
+    obs = env.reset()
+    print( len(env.action_space.states))
+    for e in range(episodes):
+        obs = env.reset()
+        for time in range(maxrounds):
+            action = [player1.choose_action(obs),
+                      player2.choose_action(obs)]
+            obs, reward, done, _ = env.step(action)
+            reward = reward / (time + 1)
+            if done or time == maxrounds - 1:
+                # if time % 100 == 0:
+                if verbose >= 1:
+                    print("Episode: {}/{}, score: {}, reward: {}"
+                          .format(e, episodes, env.roundnum, reward))
+                totaltime += env.roundnum
+                break
+    avg = totaltime / episodes
+    print ("average: {}".format(avg))
+
 def main(args):
     env = SpectrumEnv()
+    env.set_constants(num_channels=4, noise_per_person=0, sequence_len=5)
     # player1 = HumanReceiver(env)
     observation = env.reset()
     player1 = PsychicNullPlayer(env)
     # player2 = PsychicNullPlayer(env,1)
-    # player2 = RandomPlayer(env)
+    # player2 = RandomPlayer(env, 1)
     state_size = env.observation_space.shape
     player2 = LearnerPlayer(env, 1, state_size, env.action_size, args.savepath,
                             args.verbose)
     if args.nn != '':
         player2.load(args.nn)
     else:
-        player2.train(100, 10000)
+        player2.train(10000, 10000)
     player2.set_env(env)
     # player2 = TeamPlayer(env, 1, [0,2])
-    for t in range(100):
-        action1 = player1.choose_action(observation)
-        action2 = player2.choose_action(observation)
-        action = [action1, action2]
-        if args.verbose >= 2:
-            env.render('god')
-            print (env.format_obs(observation))
-            print (env.format_action(action))
-        observation, reward, done, info = env.step(action)
-        if done:
-            if args.verbose >= 1:
-                print (("Episode finished after {} timesteps".format(t+1)))
-                print (env.format_obs(observation))
-                action1 = player1.choose_action(observation)
-                print (env.format_action([action1]))
-                break
-
+    # fake_train(env, player1, player2, 100, 10000, args.verbose)
+    observation = env.reset()
+    # for t in range(10):
+    #     action1 = player1.choose_action(observation)
+    #     action2 = player2.choose_action(observation)
+    #     action = [action1, action2]
+    #     if args.verbose >= 2:
+    #         print "round: {}".format(env.roundnum)
+    #         env.render('god')
+    #         print (env.format_obs(observation))
+    #         print (env.format_action(action))
+    #     observation, reward, done, info = env.step(action)
+    #     if done:
+    #         if args.verbose >= 1:
+    #             print (("Episode finished after {} timesteps".format(t+1)))
+    #             print (env.format_obs(observation))
+    #             action1 = player1.choose_action(observation)
+    #             print (env.format_action([action1]))
+    #             break
+    #
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--verbose", metavar="Verbosity", type=int, default=0,
