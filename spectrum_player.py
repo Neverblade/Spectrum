@@ -11,8 +11,6 @@ from keras.layers import Dense
 # from keras.optimizers import RMSprop
 from keras.optimizers import SGD
 
-EPISODES = 100
-
 """
 Human-designed strategy. Send on two channels, switch channels if it fails.
 """
@@ -71,9 +69,10 @@ class TeamPlayer:
         # Not allowed to use self.last_action
         # TODO: This currently doesn't adapt to the variations in the sender
         # version
+        if my_obs[Feature.INDEX] == self.my_env.sequence_len:
+            return [0] * self.my_env.num_channels
         guess = []
-        state = \
-            self.my_env.action_space.states[my_obs[Feature.STATE]]
+        state = self.my_env.action_space.states[my_obs[Feature.STATE]]
         for i in self.priors:
             if state[i] != Suit.NULL:
                 guess.append(state[i])
@@ -142,7 +141,8 @@ class LearnerPlayer(TeamPlayer):
     def choose_action(self, observation):
         my_obs = np.reshape(observation[self.idnum], [1, self.state_size])
         if np.random.rand() <= self.epsilon:
-            return random.randrange(self.action_size)
+            return self.my_env.action_space.sample()[self.idnum]
+            # return random.randrange(self.action_size)
         act_values = self.model.predict(my_obs)
         act_index = np.argmax(act_values[0])
         return act_index
@@ -185,24 +185,23 @@ class LearnerPlayer(TeamPlayer):
         else:
             print("Invalid algorithm {}".format(alg))
 
-    def train(self):
+    def train(self, episodes=100, maxrounds=100):
         self.my_env = SpectrumEnv()
-        for e in range(EPISODES):
-            self.player1 = self.get_opponent('random')
+        for e in range(episodes):
             obs = self.my_env.reset()
+            self.player1 = self.get_opponent()
             my_obs = obs[self.idnum]
             my_obs = np.reshape(my_obs, [1, self.state_size])
-            for time in range(1000):
-                # self.my_env.render('human')
+            for time in range(maxrounds):
                 action = [self.player1.choose_action(obs),
                           self.choose_action(obs)]
-                next_obs, reward, done, _ = self.my_env.step(action)
+                obs, reward, done, _ = self.my_env.step(action)
                 reward = reward / (time + 1)
-                my_next_obs = np.reshape(next_obs[self.idnum],
+                my_next_obs = np.reshape(obs[self.idnum],
                                          [1, self.state_size])
                 self.remember(my_obs, action, reward, my_next_obs, done)
                 my_obs = my_next_obs
-                if done or time == 999:
+                if done or time == maxrounds - 1:
                     # if time % 100 == 0:
                     print("Episode: {}/{}, score: {}, reward: {}, e: {:.2}"
                           .format(e, EPISODES, time, reward, self.epsilon))
@@ -217,6 +216,7 @@ def main():
     # player1 = HumanReceiver(env)
     observation = env.reset()
     player1 = TeamPlayer(env)
+    # player2 = RandomPlayer(env)
     state_size = env.observation_space.shape
     player2 = LearnerPlayer(env, 1, state_size, env.action_size)
     # player2.load("./save/spectrum.h5")
@@ -224,7 +224,6 @@ def main():
     player2.set_env(env)
     # player2 = TeamPlayer(env, 1, [0,2])
     for t in range(100):
-        # env.render('human')
         action1 = player1.choose_action(observation)
         action2 = player2.choose_action(observation)
         action = [action1, action2]
