@@ -84,21 +84,16 @@ class SpectrumEnv(Env):
     Initialization doesn't directly allow for playing. Need to call reset.
     """
     def __init__(self):
-        # Setting arbitrary constants
-        self.num_pairs = 2
-        self.noise_per_person = 1
-        self.num_channels = self.num_pairs * 2
-        self.sequence_len = 5
-        self.noise_change_prob = 0
+        self.set_constants()
 
     """
     Set new values for the constants.
     """
-    def set_constants(self, num_pairs=2, noise_per_person=1, num_channels=4,
-                      sequence_len=5, noise_change_prob=0):
+    def set_constants(self, num_pairs=2, noise_per_person=1,
+                      sequence_len=5, noise_change_prob=0.1):
         self.num_pairs = num_pairs
         self.noise_per_person = noise_per_person
-        self.num_channels = num_channels
+        self.num_channels = self.num_pairs * 2
         self.sequence_len = sequence_len
         self.noise_change_prob = noise_change_prob
 
@@ -186,6 +181,7 @@ class SpectrumEnv(Env):
                             board_state[j] = suit
                         else: # Collision!
                             board_state[j] = Suit.NULL
+            for i in range(self.num_pairs):
                 obv = [0] * self.observation_space.shape
                 obv[Feature.SEQUENCE] = 0
                 obv[Feature.INDEX] = self.indices[i]
@@ -217,24 +213,27 @@ class SpectrumEnv(Env):
                 # Check if done
                 if self.indices[i] != self.sequence_len:
                     done = False
-                self.roundnum += 1
 
                 # Construct OBV
                 obv = [0] * self.observation_space.shape
                 obv[Feature.SEQUENCE] = \
                     self.action_space.seqs.index(tuple(self.sequence_list[i]))
-                obv[Feature.STATE] = self.action_space.states.index(tuple(self.prev_state))
+                obv[Feature.STATE] = \
+                    self.action_space.states.index(tuple(self.prev_state))
                 obv[Feature.INDEX] = self.indices[i]
                 obv[Feature.NOISE] = \
                                     self.noises.index(tuple(self.noise_list[i]))
                 obv = np.array(obv)
                 obv_list.append(obv)
 
-                # Update noises
-                for i in range(self.num_pairs):
-                    if random.random() < self.noise_change_prob:
-                        self.noise_list[i] = [True if j < self.noise_per_person
-                                  else False for j in range(self.num_channels)]
+            # Update noises
+            for i in range(self.num_pairs):
+                if random.random() < self.noise_change_prob:
+                    self.noise_list[i] = [True if j < self.noise_per_person
+                              else False for j in range(self.num_channels)]
+                    random.shuffle(self.noise_list[i])
+            if not done:
+                self.roundnum += 1
 
             self.turn = Agent.SENDER
             return obv_list, reward, done, {}
@@ -273,7 +272,7 @@ class SpectrumEnv(Env):
 
 
         s += "============================="
-        if mode == 'human':
+        if mode == 'human' or mode == 'god':
             print(s)
         else:
             return s
