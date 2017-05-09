@@ -101,9 +101,22 @@ class RandomPlayer(TeamPlayer):
         sample = self.my_env.action_space.sample()
         return sample[self.idnum]
 
-class NullPlayer(TeamPlayer):
+class PsychicNullPlayer(TeamPlayer):
+    # def __init__(self, env, num=0, priors=[0]):
+    #     TeamPlayer.__init__(self, env, num, priors)
+    #     self.my_env.sequence_list[self.idnum] = [0]
+    #
     def choose_action(self, observation):
-        return 0
+        if self.my_env.turn == Agent.SENDER:
+            return 0
+        else:
+            seq = self.my_env.sequence_list[self.idnum]
+            if len(seq) > self.my_env.num_channels:
+                index = self.my_env.indices[self.idnum]
+                seq = seq[index:index + self.my_env.num_channels]
+            while len(seq) < self.my_env.num_channels:
+                seq.append(0)
+            return self.my_env.action_space.states.index(tuple(seq))
 
 """
 Neural network player based on https://keon.io/deep-q-learning/
@@ -194,7 +207,7 @@ class LearnerPlayer(TeamPlayer):
         elif alg == 'hardcode':
             return TeamPlayer(self.my_env)
         elif alg == 'null':
-            return NullPlayer(self.my_env)
+            return PsychicNullPlayer(self.my_env)
         else:
             print("Invalid algorithm {}".format(alg))
 
@@ -229,7 +242,8 @@ def main(args):
     env = SpectrumEnv()
     # player1 = HumanReceiver(env)
     observation = env.reset()
-    player1 = NullPlayer(env)
+    player1 = PsychicNullPlayer(env)
+    # player2 = PsychicNullPlayer(env,1)
     # player2 = RandomPlayer(env)
     state_size = env.observation_space.shape
     player2 = LearnerPlayer(env, 1, state_size, env.action_size, args.savepath,
@@ -237,7 +251,7 @@ def main(args):
     if args.nn != '':
         player2.load(args.nn)
     else:
-        player2.train(100)
+        player2.train(100, 10000)
     player2.set_env(env)
     # player2 = TeamPlayer(env, 1, [0,2])
     for t in range(100):
