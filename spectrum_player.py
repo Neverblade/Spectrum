@@ -101,6 +101,10 @@ class RandomPlayer(TeamPlayer):
         sample = self.my_env.action_space.sample()
         return sample[self.idnum]
 
+class NullPlayer(TeamPlayer):
+    def choose_action(self, observation):
+        return 0
+
 """
 Neural network player based on https://keon.io/deep-q-learning/
 """
@@ -189,6 +193,8 @@ class LearnerPlayer(TeamPlayer):
             return RandomPlayer(self.my_env)
         elif alg == 'hardcode':
             return TeamPlayer(self.my_env)
+        elif alg == 'null':
+            return NullPlayer(self.my_env)
         else:
             print("Invalid algorithm {}".format(alg))
 
@@ -196,7 +202,7 @@ class LearnerPlayer(TeamPlayer):
         self.my_env = SpectrumEnv()
         for e in range(episodes):
             obs = self.my_env.reset()
-            self.player1 = self.get_opponent()
+            self.player1 = self.get_opponent('null')
             my_obs = obs[self.idnum]
             my_obs = np.reshape(my_obs, [1, self.state_size])
             for time in range(maxrounds):
@@ -223,7 +229,7 @@ def main(args):
     env = SpectrumEnv()
     # player1 = HumanReceiver(env)
     observation = env.reset()
-    player1 = TeamPlayer(env)
+    player1 = NullPlayer(env)
     # player2 = RandomPlayer(env)
     state_size = env.observation_space.shape
     player2 = LearnerPlayer(env, 1, state_size, env.action_size, args.savepath,
