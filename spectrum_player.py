@@ -12,13 +12,14 @@ from keras.models import Sequential
 from keras.layers import Dense
 # from keras.optimizers import RMSprop
 from keras.optimizers import SGD
+import sys
 
 """
 Human-designed strategy. Send on two channels, switch channels if it fails.
 """
 class TeamPlayer:
 
-    def __init__(self, env, num=0, priors=[1,3]):
+    def __init__(self, env=None, num=0, priors=[1,3]):
         self.my_env = env
         self.idnum = num
         self.last_action = None
@@ -93,6 +94,16 @@ class HumanReceiver(TeamPlayer):
             guess.append(0)
         return guess
 
+class HumanSender(TeamPlayer):
+
+    # Send the next card in the sequence on every channel.
+    def choose_sender_action(self, my_obs):
+        my_seq_code = my_obs[Feature.SEQUENCE]
+        my_seq = self.my_env.action_space.seqs[my_seq_code]
+        my_seq_index = my_obs[Feature.INDEX]
+        action = [my_seq[my_seq_index] for i in range(self.my_env.num_channels)]
+        return action
+
 """
 Select actions uniformly at random
 """
@@ -126,7 +137,7 @@ class LearnerPlayer(TeamPlayer):
                  gamma=0.9, epsilon=1.0,
                  e_decay=0.999,
                  e_min=0.05,
-                 learning_rate=0.01, batch_size=4):
+                 learning_rate=0.01, batch_size=64):
         TeamPlayer.__init__(self, env, idnum)
         self.state_size = state_size
         self.action_size = action_size
@@ -173,6 +184,8 @@ class LearnerPlayer(TeamPlayer):
 
     def replay(self, batch_size):
         batch_size = min(batch_size, len(self.memory))
+        if batch_size == 0:
+            batch_size = 1
         minibatch = random.sample(self.memory, batch_size)
         X = np.zeros((batch_size, self.state_size))
         Y = np.zeros((batch_size, self.action_size))
@@ -234,19 +247,65 @@ class LearnerPlayer(TeamPlayer):
                     self.remember(my_obs, action, reward, my_next_obs, done)
                 my_obs = my_next_obs
                 if done or time == maxrounds - 1:
-                    if time % 100 == 0:
+                    if time % 10 == 0:
                         if self.verbose >= 1:
                             print("Episode: {}/{}, score: {}, reward: {}, e: {:.2}"
                                   .format(e, episodes, self.my_env.roundnum, reward, self.epsilon))
                     totaltime += self.my_env.roundnum
                     break
             self.replay(self.batch_size)
-            if e % 100 == 0:
+            if e % 10 == 0:
                 if self.verbose >= 1:
                     avg = totaltime / (e + 1)
                     print(avg)
-                self.save(args.savepath+"spectrum.{}.h5".format(e))
+                #self.save(args.savepath+"spectrum.{}.h5".format(e))
         self.my_env.close()
+
+class LearnerReceiverPlayer(LearnerPlayer):
+
+    def train(self, episodes=100, maxrounds=100):
+        self.my_env = SpectrumEnv()
+        self.my_env.set_constants(num_pairs=1, noise_per_person=0, \
+                                  num_channels=4, sequence_len=5, \
+                                  noise_change_prob=0)
+        self.my_env.reset()
+        sender_player = HumanSender(self.my_env, 0)
+        cum_sum_rounds = 0
+
+        for e in range(episodes):
+            sen_obv, sen_obv_nn, rec_obv, rec_obv_nn = None, None, None, None
+            sen_obv = self.my_env.reset() # Initial sender state
+            for t in range(maxrounds):
+                # Send
+                sen_action = [sender_player.choose_action(sen_obv)]
+                rec_obv, reward, done, _ = self.my_env.step(sen_action)
+                rec_obv_nn = np.reshape(rec_obv, [1, self.state_size])
+                # Receive
+                rec_action = [self.choose_action(rec_obv_nn)]
+                sen_obv, reward, done, _ = self.my_env.step(rec_action)
+                sen_obv_nn = np.reshape(sen_obv, [1, self.state_size])
+                if reward == 0:
+                    reward = -t
+                else:
+                    reward = 5
+                #reward = reward / (t + 1)**4
+                if random.random() < 1.0:
+                    self.remember(rec_obv_nn, rec_action, reward, sen_obv_nn, done)
+                if (done or t == maxrounds - 1):
+                    #if self.verbose >= 1 and e % 10 == 0:
+                    #    print("Episode: {}/{}, score: {}, reward: {}, e: {:.2}"
+                    #          .format(e, episodes, self.my_env.roundnum, reward, #self.epsilon))
+                    #    sys.stdout.flush()
+                    cum_sum_rounds += self.my_env.roundnum
+                    break
+            if e % 10 == 0:
+                self.replay(self.batch_size)
+                if e % 100 == 0:
+                    avg = cum_sum_rounds / (e + 1)
+                    print("Episode {}, avg score {:.4}, e {:.4}".format(e, avg, self.epsilon))
+                    sys.stdout.flush()
+        self.my_env.close()
+
 
 def fake_train(env, player1, player2, episodes, maxrounds, verbose=1):
     totaltime = 0.0
@@ -269,6 +328,19 @@ def fake_train(env, player1, player2, episodes, maxrounds, verbose=1):
     avg = totaltime / episodes
     print ("average: {}".format(avg))
 
+def main(args):
+    env = SpectrumEnv()
+    env.set_constants(num_pairs=1, noise_per_person=0, \
+                              num_channels=4, sequence_len=5, \
+                              noise_change_prob=0)
+    env.reset()
+    state_size = env.observation_space.shape
+    receiver_player = LearnerReceiverPlayer(env, 0, state_size, \
+                                            env.action_size, args.savepath, \
+                                            args.verbose)
+    receiver_player.train(1000000, 10000)
+
+"""
 def main(args):
     env = SpectrumEnv()
     env.set_constants(num_channels=4, noise_per_person=0, sequence_len=5)
@@ -305,7 +377,9 @@ def main(args):
     #             action1 = player1.choose_action(observation)
     #             print (env.format_action([action1]))
     #             break
-    #
+"""
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--verbose", metavar="Verbosity", type=int, default=0,
