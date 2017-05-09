@@ -242,6 +242,25 @@ class SpectrumEnv(Env):
             self.turn = Agent.SENDER
             return obv_list, reward, done, {}
 
+    def format_obs(self, obs):
+        s = ""
+        for i in range(self.num_pairs):
+            s+= "Index: {} State: {} Noise: {} Sequence: {} Score: {}\n"\
+                .format(obs[i][Feature.INDEX],
+                        self.action_space.states[obs[i][Feature.STATE]],
+                        self.noises[obs[i][Feature.NOISE]],
+                        self.action_space.seqs[obs[i][Feature.SEQUENCE]],
+                        obs[i][Feature.GLOBAL_SCORE])
+        return s
+
+    def format_action(self, xn):
+        s = ""
+        for i in range(len(xn)):
+            s+= "Player {} sends {}\n"\
+                .format(i, self.action_space.states[xn[i]])
+        return s
+
+
 
     def _render(self, mode='god', close=False):
         s = "\n"
