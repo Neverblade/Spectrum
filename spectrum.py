@@ -89,11 +89,14 @@ class SpectrumEnv(Env):
     """
     Set new values for the constants.
     """
-    def set_constants(self, num_pairs=2, noise_per_person=1,
+    def set_constants(self, num_pairs=2, noise_per_person=1, num_channels=0,
                       sequence_len=5, noise_change_prob=0.1):
         self.num_pairs = num_pairs
         self.noise_per_person = noise_per_person
-        self.num_channels = self.num_pairs * 2
+        if num_channels == 0:
+            self.num_channels = self.num_pairs * 2
+        else:
+            self.num_channels = num_channels
         self.sequence_len = sequence_len
         self.noise_change_prob = noise_change_prob
 
@@ -201,8 +204,9 @@ class SpectrumEnv(Env):
             for i in range(self.num_pairs):
                 # Process action
                 seq, index = action_list[i], self.indices[i]
+                # Strip zeros from the guess so that we can compare it
                 seq_guess = list(filter(lambda a: a != 0,
-                                        self.action_space.seqs[seq]))
+                                        self.action_space.states[seq]))
                 for j in range(len(seq_guess)):
                     if index + j >= self.sequence_len \
                        or seq_guess[j] != self.sequence_list[i][index + j]:
@@ -263,6 +267,8 @@ class SpectrumEnv(Env):
 
 
     def _render(self, mode='god', close=False):
+        if close:
+            return
         s = "\n"
         s += "=== Round: " + str(self.roundnum)
         s += " Turn: " + ("Sender" if self.turn == Agent.SENDER else "Receiver") + " ===\n\n"
@@ -309,7 +315,7 @@ class ActionSpace(Space):
         self.spectrum = spectrum
         self.states = [i for i in itertools.product(range(len(Suit.ALL)),
                                    repeat=self.spectrum.num_channels)]
-        self.seqs = [i for i in itertools.product(range(1+len(Suit.SUITS)),
+        self.seqs = [tuple([0] * self.spectrum.sequence_len)] + [i for i in itertools.product(range(1,1+len(Suit.SUITS)),
                                  repeat=self.spectrum.sequence_len)]
 
     def sample(self):
@@ -333,10 +339,10 @@ class ActionSpace(Space):
 
     def contains(self, x):
         #try:
-        if self.spectrum.turn == Agent.SENDER:
-            lst = range(len(self.states))
-        else:
-            lst = range(len(self.seqs))
+        # if self.spectrum.turn == Agent.SENDER:
+        lst = range(len(self.states))
+        # else:
+        #     lst = range(len(self.seqs))
         for i in range(len(x)):
             if x[i] not in lst:
                 return False
