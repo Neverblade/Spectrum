@@ -124,9 +124,10 @@ class LearnerPlayer(TeamPlayer):
     def _build_model(self):
         model = Sequential()
         # Input layer 4 and hidden layer with 20 nodes
-        model.add(Dense(20, input_dim=4, activation='tanh'))
+        model.add(Dense(128, input_dim=self.my_env.observation_space.shape,
+                         activation='sigmoid'))
         # hidden layer with 128 nodes
-        model.add(Dense(20, activation='tanh'))
+        model.add(Dense(128, activation='sigmoid'))
         # output layer with 256 nodes
         model.add(Dense(self.my_env.action_size, activation='softmax'))
         model.compile(loss='mse',

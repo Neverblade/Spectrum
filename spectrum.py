@@ -125,7 +125,8 @@ class SpectrumEnv(Env):
             [[0, len(self.action_space.seqs)],    # Sequence
              [0, len(self.action_space.states)],  # State
              [0, self.sequence_len],    # Index
-             [0, len(self.noises)]]) # Noise
+             [0, len(self.noises)], # Noise
+             [0, self.sequence_len * self.num_pairs]]) # Global score
 
         # Assign attributes accordingly
         self.turn = Agent.SENDER
@@ -148,6 +149,7 @@ class SpectrumEnv(Env):
             my_state = tuple(self.prev_state)
             obv[Feature.STATE] = self.action_space.states.index(my_state)
             obv[Feature.INDEX] = self.indices[i]
+            obv[Feature.GLOBAL_SCORE] = 0
             obv[Feature.NOISE] = self.noises.index(tuple(self.noise_list[i]))
             obv = np.array(obv)
             obv_list.append(obv)
@@ -185,6 +187,7 @@ class SpectrumEnv(Env):
                 obv = [0] * self.observation_space.shape
                 obv[Feature.SEQUENCE] = 0
                 obv[Feature.INDEX] = self.indices[i]
+                obv[Feature.GLOBAL_SCORE] = sum(self.indices)
                 obv[Feature.STATE] = \
                     self.action_space.states.index(tuple(board_state))
                 obv[Feature.NOISE] = 0
@@ -232,6 +235,7 @@ class SpectrumEnv(Env):
                     self.noise_list[i] = [True if j < self.noise_per_person
                               else False for j in range(self.num_channels)]
                     random.shuffle(self.noise_list[i])
+                obv_list[i][Feature.GLOBAL_SCORE] = sum(self.indices)
             if not done:
                 self.roundnum += 1
 
@@ -267,8 +271,7 @@ class SpectrumEnv(Env):
                 for j in range(self.num_channels):
                     s += "    " + ("X" if self.noise_list[i][j] else ".")
                 s += "\n\n"
-        else:
-            s += "Global score is {}\n".format(sum(self.indices))
+        s += "Global score is {}\n".format(sum(self.indices))
 
 
         s += "============================="
@@ -360,3 +363,4 @@ class Feature:
     STATE = 1
     NOISE = 2
     SEQUENCE = 3
+    GLOBAL_SCORE = 4
